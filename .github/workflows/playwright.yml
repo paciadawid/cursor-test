@@ -27,11 +27,13 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
+      - name: Create .env from example
+        run: cp .env.example .env
+
       - name: Run tests
         run: npm test
         env:
           CI: true
-          BASE_URL: ${{ secrets.BASE_URL }}
 
       - name: Upload test report
         uses: actions/upload-artifact@v4
