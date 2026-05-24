@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest"
+      ]
+    },
+    "context7": {
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {}
+    },
+    "optimizely-exp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://exp.mcp.opal.optimizely.com/mcp"
+      ]
+    }
+  }
+}
