@@ -8,9 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 jobs:
   test:
@@ -50,22 +48,91 @@ jobs:
           path: test-results/
           retention-days: 7
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v4
         if: always()
         with:
+          name: playwright-report
           path: playwright-report/
+          retention-days: 30
 
   deploy:
     needs: test
     runs-on: ubuntu-latest
     if: always()
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Download report
+        uses: actions/download-artifact@v4
+        with:
+          name: playwright-report
+          path: downloaded-report
+
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages
+        continue-on-error: true
+
+      - name: Initialize gh-pages if branch does not exist
+        run: |
+          if [ ! -d gh-pages/.git ]; then
+            mkdir -p gh-pages
+            cd gh-pages
+            git init
+            git checkout -b gh-pages
+          fi
+
+      - name: Copy report into versioned directory
+        run: |
+          mkdir -p gh-pages/reports/run-${{ github.run_number }}
+          cp -r downloaded-report/. gh-pages/reports/run-${{ github.run_number }}/
+
+      - name: Generate index page
+        run: |
+          python3 -c "
+          import os, glob, re
+          runs = sorted(
+            glob.glob('gh-pages/reports/run-*'),
+            key=lambda x: int(re.search(r'[0-9]+$', x).group()),
+            reverse=True
+          )
+          items = ''.join(
+            f'<li><a href=\"reports/{os.path.basename(r)}/index.html\">{os.path.basename(r)}</a></li>'
+            for r in runs
+          )
+          html = '''<!DOCTYPE html>
+          <html lang=\"en\">
+          <head>
+            <meta charset=\"UTF-8\">
+            <title>Playwright Reports</title>
+            <style>
+              body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; }
+              h1 { color: #333; }
+              ul { list-style: none; padding: 0; }
+              li { margin: 8px 0; }
+              a { color: #0066cc; text-decoration: none; font-size: 16px; }
+              a:hover { text-decoration: underline; }
+            </style>
+          </head>
+          <body>
+            <h1>Playwright Test Reports</h1>
+            <ul>''' + items + '''</ul>
+          </body>
+          </html>'''
+          with open('gh-pages/index.html', 'w') as f:
+            f.write(html)
+          "
+
+      - name: Commit and push to gh-pages
+        run: |
+          cd gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git 2>/dev/null || \
+            git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git add .
+          git commit -m "Add Playwright report for run #${{ github.run_number }}"
+          git push origin HEAD:gh-pages
