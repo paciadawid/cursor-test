@@ -12,7 +12,7 @@ export default defineConfig({
   reporter: 'html',
   use: {
     baseURL: process.env.BASE_URL ?? 'https://bearstore-testsite.smartbear.com/',
-    trace: process.env.CI ? 'on-first-retry' : 'retain-on-failure',
+    trace: 'retain-on-failure',
     video: 'retain-on-failure',
   },
   projects: [
